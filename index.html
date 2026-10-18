@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Phozphor</title>
+<style>
+:root{--bg:#eef2ef;--panel:#fff;--ink:#13201a;--mute:#5a6a61;--line:#cbd6cf;--acc:#08804d;--accink:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#060c09;--panel:#0c1510;--ink:#d8f4e5;--mute:#7d9988;--line:#1c3126;--acc:#5dffb0;--accink:#032013}}
+:root[data-theme="dark"]{--bg:#060c09;--panel:#0c1510;--ink:#d8f4e5;--mute:#7d9988;--line:#1c3126;--acc:#5dffb0;--accink:#032013}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 40px;display:grid;gap:20px;grid-template-columns:minmax(0,1fr) 320px}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr)}}
+h1{font-size:22px;margin:0 0 4px;letter-spacing:.02em}
+p.sub{margin:0;color:var(--mute);max-width:60ch}
+header{grid-column:1/-1}
+.stage{background:#000;border:1px solid var(--line);min-height:320px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+canvas{display:block;max-width:100%;height:auto}
+.drop{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#7dffc0;text-align:center;padding:20px;cursor:pointer}
+.drop.hide{display:none}
+.drop.over{background:rgba(93,255,176,.08)}
+.panel{background:var(--panel);border:1px solid var(--line);padding:16px;display:grid;gap:12px;align-content:start}
+label{display:grid;gap:4px;font-size:13px;color:var(--mute)}
+label span{display:flex;justify-content:space-between}
+label b{color:var(--ink);font-weight:500}
+input[type=range]{width:100%;accent-color:var(--acc)}
+select,button{font:inherit;padding:9px 12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:4px}
+button.main{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:600;cursor:pointer}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+small{color:var(--mute);font-size:12px}
+.sw{display:flex;gap:6px;flex-wrap:wrap}
+.sw button{padding:0;width:34px;height:34px;border-radius:50%;cursor:pointer}
+.sw button[aria-pressed=true]{outline:2px solid var(--ink);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+<h1>Phozphor</h1>
+</header>
+
+<div>
+<div class="stage" id="stage">
+<canvas id="out" width="640" height="640" hidden></canvas>
+<div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose an image">
+<div style="font-size:18px">Drop an image here</div>
+<div style="opacity:.7">or click to choose a file</div>
+</div>
+</div>
+</div>
+
+<div class="panel">
+<input type="file" id="file" accept="image/*" hidden>
+<div class="sw" id="sw" role="group" aria-label="Phosphor colour"></div>
+<label>Pattern
+<select id="pat">
+<option value="pixel">Pixelate (Hard Mix tile)</option>
+<option value="softpix">Pixelate soft</option>
+<option value="corner">Corner grid</option>
+<option value="cube">Cube dots</option>
+<option value="columns">Scanline columns</option>
+<option value="blocks">Pixel blocks</option>
+<option value="dots">LED dots</option>
+<option value="matrix">Matrix glyphs</option>
+<option value="binary">Binary 1 / 0</option>
+<option value="net">Neural net mesh</option>
+<option value="dither">Dither</option>
+<option value="hlines">Horizontal lines</option>
+</select></label>
+<label><span>Threshold <b id="v_thr"></b></span><input type="range" id="thr" min="0" max="100" value="38"></label>
+<label><span>Contrast <b id="v_con"></b></span><input type="range" id="con" min="1" max="20" value="8"></label>
+<label><span>Edge linework <b id="v_edge"></b></span><input type="range" id="edge" min="0" max="100" value="55"></label>
+<label><span>Cell size <b id="v_pitch"></b></span><input type="range" id="pitch" min="1" max="8" value="3"></label>
+<label><span>Scanline depth <b id="v_depth"></b></span><input type="range" id="depth" min="0" max="100" value="70"></label>
+<label><span>Glow <b id="v_glow"></b></span><input type="range" id="glow" min="0" max="100" value="60"></label>
+<label><span>Glow drift <b id="v_drift"></b></span><input type="range" id="drift" min="0" max="100" value="0"></label>
+<label><span>Vignette <b id="v_vig"></b></span><input type="range" id="vig" min="0" max="100" value="55"></label>
+<label><span>Noise <b id="v_noise"></b></span><input type="range" id="noise" min="0" max="100" value="12"></label>
+<label>Output size
+<select id="size"><option value="640">640 px</option><option value="1024" selected>1024 px</option><option value="1600">1600 px</option></select></label>
+<div class="row">
+<button id="swap" disabled>Choose another</button>
+<button id="save" class="main" disabled>Save PNG</button>
+</div>
+<small id="msg" role="status"></small>
+</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const PAL={
+green:['#02120b','#12b36b','#bfffe0'],
+amber:['#140a00','#d9800d','#ffe6b0'],
+cyan:['#00101a','#14a6d6','#c8f5ff'],
+red:['#140202','#d6342b','#ffcdc8'],
+mono:['#050505','#8a8a8a','#ffffff']};
+const hex=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+let pal='green',img=null,raf=0;
+const out=$('out'),octx=out.getContext('2d');
+
+const sw=$('sw');
+Object.keys(PAL).forEach(k=>{
+ const b=document.createElement('button');
+ b.title=k;b.setAttribute('aria-label',k);b.setAttribute('aria-pressed',k===pal);
+ b.style.background=PAL[k][1];
+ b.onclick=()=>{pal=k;[...sw.children].forEach(c=>c.setAttribute('aria-pressed',c===b));queue()};
+ sw.appendChild(b);
+});
+
+const ctl=['pat','drift','thr','con','edge','pitch','depth','glow','vig','noise','size'];
+ctl.forEach(id=>{
+ const el=$(id),lab=$('v_'+id);
+ const upd=()=>{if(lab)lab.textContent=el.value};
+ upd();el.addEventListener('input',()=>{upd();queue()});
+});
+
+const K={pitch:3,depth:.7};
+const hash=(a,b)=>{let h=(a*374761393+b*668265263)|0;h=(h^(h>>>13))*1274126177|0;return((h^(h>>>16))>>>0)/4294967295};
+const BAY=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+const GLY=[[1,1,1,1,0,1,1,0,1,1,0,1,1,1,1],[0,1,0,1,1,0,0,1,0,0,1,0,1,1,1]];
+const BARS=[[8,29,.35],[40,61,.7],[70,91,.2]];
+const BAR=u=>BARS.find(b=>u>=b[0]&&u<b[1]);
+const PATS={
+pixel:{cw:p=>p*4,ch:p=>p*4,f:(lx,ly,cw,ch,v)=>{const u=(lx+.5)/cw*100,w=(ly+.5)/ch*100,b=BAR(u);if(!b||w<8||w>=92)return 0;return v+b[2]>=1?.55+.45*v:0}},
+softpix:{cw:p=>p*4,ch:p=>p*4,f:(lx,ly,cw,ch,v)=>{const u=(lx+.5)/cw*100,w=(ly+.5)/ch*100,b=BAR(u);if(!b)return 0;const e=Math.max(0,Math.min(1,Math.min(u-b[0],b[1]-u,w-8,92-w)/6)),k=Math.max(0,Math.min(1,(v+b[2]-1)*4+.5));return k*e}},
+corner:{cw:p=>p*4,ch:p=>p*4,f:(lx,ly,cw,ch,v)=>{const t=K.pitch;let on=false;if(lx<t*2&&ly<t*2&&(lx<t||ly<t))on=v>.15;if((lx<t||ly<t)&&!on)on=v>.45;if(!on&&lx>=t&&ly>=t)on=v>.8;return on?.5+.5*v:0}},
+cube:{cw:p=>p*4,ch:p=>p*4,f:(lx,ly,cw,ch,v)=>{const s=Math.sqrt(v)*cw*.85;return Math.abs(lx+.5-cw/2)<s/2&&Math.abs(ly+.5-ch/2)<s/2?.45+.55*v:0}},
+columns:{cw:p=>1,ch:p=>1,f:(lx,ly,cw,ch,v,cx,cy,x,y)=>{const p=K.pitch,lit=Math.max(1,p>>1),dash=Math.max(3,p*2);let m=1;if(x%p>=lit)m-=K.depth;if(y%dash===dash-1)m-=K.depth*.6;return v*Math.max(.04,m)}},
+blocks:{cw:p=>p*2,ch:p=>p*2,f:(lx,ly,cw,ch,v)=>v*((lx<cw-1&&ly<ch-1)?1:1-K.depth)},
+dots:{cw:p=>p*3,ch:p=>p*3,f:(lx,ly,cw,ch,v)=>{const d=Math.hypot(lx+.5-cw/2,ly+.5-ch/2);return d<Math.sqrt(v)*cw*.58?.35+.65*v:0}},
+matrix:{cw:p=>p*3,ch:p=>p*5,f:(lx,ly,cw,ch,v,cx,cy)=>{if(v<.12)return 0;const p=K.pitch,bit=hash(cx*31+((lx/p)|0),cy*17+((ly/p)|0))>.45;return v*(bit?1:1-K.depth*.9)}},
+net:{cw:p=>p*4,ch:p=>p*4,f:(lx,ly,cw,ch,v)=>{let m=0;if(lx===0||ly===0)m=1;else if(lx===ly||lx+ly===cw-1)m=.65;if(lx===0&&ly===0)m=1.3;return Math.min(1,v*m*1.2)}},
+dither:{cw:p=>1,ch:p=>1,f:(lx,ly,cw,ch,v,cx,cy,x,y)=>{const p=K.pitch,i=(((y/p)|0)%4)*4+((x/p)|0)%4;return v*15.99>BAY[i]?.4+.6*v:0}},
+binary:{cw:p=>p*4,ch:p=>p*6,f:(lx,ly,cw,ch,v,cx,cy)=>{if(v<.1)return 0;const p=K.pitch,gx=(lx/p)|0,gy=(ly/p)|0;if(gx>2||gy>4)return 0;return GLY[hash(cx,cy)>.5?1:0][gy*3+gx]?Math.min(1,v*1.15):0}},
+hlines:{cw:p=>1,ch:p=>1,f:(lx,ly,cw,ch,v,cx,cy,x,y)=>{const p=K.pitch;return y%(p*2)<p?v:v*(1-K.depth)}}
+};
+function queue(){if(!img)return;cancelAnimationFrame(raf);raf=requestAnimationFrame(render)}
+
+function render(){
+ const max=+$('size').value;
+ const s=max/Math.max(img.naturalWidth,img.naturalHeight);
+ const w=Math.max(8,Math.round(img.naturalWidth*s)),h=Math.max(8,Math.round(img.naturalHeight*s));
+ const src=document.createElement('canvas');src.width=w;src.height=h;
+ const sctx=src.getContext('2d',{willReadFrequently:true});
+ sctx.fillStyle='#000';sctx.fillRect(0,0,w,h);
+ sctx.drawImage(img,0,0,w,h);
+ const d=sctx.getImageData(0,0,w,h).data;
+ const L=new Float32Array(w*h);
+ for(let i=0;i<w*h;i++){L[i]=(0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2])/255}
+
+ const thr=$('thr').value/100,slope=+$('con').value,eAmt=$('edge').value/100;
+ const pitch=+$('pitch').value,depth=$('depth').value/100,noise=$('noise').value/100;
+ const lit=Math.max(1,Math.floor(pitch/2)),dash=Math.max(3,pitch*2);
+ const [c0,c1,c2]=PAL[pal].map(hex);
+
+ const V=new Float32Array(w*h);
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+  const i=y*w+x;let e=0;
+  if(x>0&&y>0&&x<w-1&&y<h-1){
+   const gx=L[i-w+1]+2*L[i+1]+L[i+w+1]-L[i-w-1]-2*L[i-1]-L[i+w-1];
+   const gy=L[i+w-1]+2*L[i+w]+L[i+w+1]-L[i-w-1]-2*L[i-w]-L[i-w+1];
+   e=Math.min(1,Math.hypot(gx,gy)*1.6);
+  }
+  let v=L[i]*(1-eAmt)+Math.max(L[i]*0.6,e)*eAmt;
+  v=(v-thr)*slope+0.5;V[i]=v<0?0:v>1?1:v;
+ }
+ K.pitch=pitch;K.depth=depth;
+ const PT=PATS[$('pat').value],cw=PT.cw(pitch),ch=PT.ch(pitch);
+ const gw=Math.ceil(w/cw),gh=Math.ceil(h/ch);
+ let G=null;
+ if(cw>1||ch>1){
+  G=new Float32Array(gw*gh);
+  for(let cy=0;cy<gh;cy++)for(let cx=0;cx<gw;cx++){
+   let s=0,n=0,mx=0;
+   for(let y=cy*ch;y<Math.min(h,cy*ch+ch);y++)for(let x=cx*cw;x<Math.min(w,cx*cw+cw);x++){const q=V[y*w+x];s+=q;n++;if(q>mx)mx=q}
+   G[cy*gw+cx]=(s/n)*0.6+mx*0.4;
+  }
+ }
+ const base=document.createElement('canvas');base.width=w;base.height=h;
+ const bctx=base.getContext('2d');
+ const im=bctx.createImageData(w,h),o=im.data;
+ for(let y=0;y<h;y++){
+  const cy=(y/ch)|0,ly=y-cy*ch;
+  for(let x=0;x<w;x++){
+   const cx=(x/cw)|0,lx=x-cx*cw,i=y*w+x;
+   const v=G?G[cy*gw+cx]:V[i];
+   let t=PT.f(lx,ly,cw,ch,v,cx,cy,x,y);
+   if(noise)t*=1+(Math.random()-0.5)*noise*0.8;
+   t=t<0?0:t>1?1:t;
+   let r,g,b;
+   if(t<0.5){const k=t*2;r=c0[0]+(c1[0]-c0[0])*k;g=c0[1]+(c1[1]-c0[1])*k;b=c0[2]+(c1[2]-c0[2])*k}
+   else{const k=(t-0.5)*2;r=c1[0]+(c2[0]-c1[0])*k;g=c1[1]+(c2[1]-c1[1])*k;b=c1[2]+(c2[2]-c1[2])*k}
+   const j=i*4;o[j]=r;o[j+1]=g;o[j+2]=b;o[j+3]=255;
+  }
+ }
+ bctx.putImageData(im,0,0);
+
+ out.width=w;out.height=h;
+ octx.globalCompositeOperation='source-over';
+ octx.globalAlpha=1;
+ octx.drawImage(base,0,0);
+
+ // bloom: repeated half-size downsampling, added back with "lighter"
+ const glow=$('glow').value/100;
+ if(glow>0){
+  let cur=base,cw=w,ch=h;
+  octx.globalCompositeOperation='lighter';
+  octx.imageSmoothingEnabled=true;octx.imageSmoothingQuality='high';
+  for(let lvl=1;lvl<=5;lvl++){
+   cw=Math.max(2,cw>>1);ch=Math.max(2,ch>>1);
+   const c=document.createElement('canvas');c.width=cw;c.height=ch;
+   const cx=c.getContext('2d');cx.imageSmoothingQuality='high';
+   cx.drawImage(cur,0,0,cw,ch);cur=c;
+   if(lvl>=2){octx.globalAlpha=glow*(lvl<4?0.55:0.4);const dr=$('drift').value/100*lvl*w*.006;octx.drawImage(c,dr,dr,w,h)}
+  }
+  octx.globalAlpha=1;octx.globalCompositeOperation='source-over';
+ }
+
+ const vig=$('vig').value/100;
+ if(vig>0){
+  const g=octx.createRadialGradient(w/2,h/2,Math.min(w,h)*0.3,w/2,h/2,Math.hypot(w,h)/2);
+  g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,'+vig+')');
+  octx.fillStyle=g;octx.fillRect(0,0,w,h);
+ }
+ out.hidden=false;$('drop').classList.add('hide');
+ $('save').disabled=false;$('swap').disabled=false;
+}
+
+function load(file){
+ if(!file||!file.type.startsWith('image/')){$('msg').textContent='That file is not an image. Choose a PNG, JPG or WebP.';return}
+ const url=URL.createObjectURL(file),im=new Image();
+ im.onload=()=>{img=im;$('msg').textContent='';render()};
+ im.onerror=()=>{$('msg').textContent='This image could not be read. Try a different file.'};
+ im.src=url;
+}
+
+const drop=$('drop'),file=$('file');
+drop.onclick=()=>file.click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();file.click()}};
+$('swap').onclick=()=>file.click();
+file.onchange=()=>load(file.files[0]);
+['dragover','dragenter'].forEach(ev=>$('stage').addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>$('stage').addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
+$('stage').addEventListener('drop',e=>load(e.dataTransfer.files[0]));
+
+let dl=null;
+(async()=>{try{dl=await claude.use('downloads')}catch(e){dl=null}})();
+function fallback(why){
+ const ov=document.createElement('div');
+ ov.style.cssText='position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;color:#d8f4e5;text-align:center';
+ ov.innerHTML='<div></div><img alt="Converted image" style="max-width:100%;max-height:70vh"><button class="main">Close</button>';
+ ov.firstChild.textContent=why+' Press and hold (or right-click) the image, then choose save.';
+ ov.querySelector('img').src=out.toDataURL('image/png');
+ ov.querySelector('button').onclick=()=>ov.remove();
+ document.body.appendChild(ov);
+}
+$('save').onclick=async()=>{
+ if(!dl){try{dl=await claude.use('downloads')}catch(e){dl=null}}
+ const blob=await new Promise(r=>out.toBlob(r,'image/png'));
+ if(!blob){fallback('Could not encode the image.');return}
+ if(!dl){fallback('Direct saving is not available in this view.');return}
+ try{await dl.save({filename:'phosphor.png',data:await blob.arrayBuffer()});$('msg').textContent='Saved.'}
+ catch(e){
+  if(e&&e.code==='declined'){$('msg').textContent='Save cancelled.';return}
+  fallback('Direct saving failed'+(e&&e.code?' ('+e.code+')':'')+'.');
+ }
+};
+</script>
+</body>
+</html>
